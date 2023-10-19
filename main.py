@@ -14,7 +14,6 @@ bot = lightbulb.BotApp(token=os.getenv("TOKEN"))
 db = dataset.connect("sqlite:///data.db")
 table = db["subscriptions"]
 
-
 async def run_background() -> None:
     log.info("Scraper started.")
 
@@ -51,21 +50,46 @@ async def ready_listener(_):
     log.info("{count} subscriptions registered", count=table.count())
     asyncio.create_task(run_background())
 
-
 @bot.command()
 @lightbulb.option("url", "URL to vinted search", type=str, required=True)
-@lightbulb.option(
-    "channel", "Channel to receive alerts", type=hikari.TextableChannel, required=True
-)
+@lightbulb.option("channel_name", "Name of the channel for alerts", type=str, required=True)
 @lightbulb.command("subscribe", "Subscribe to a Vinted search")
 @lightbulb.implements(lightbulb.SlashCommand)
 async def subscribe(ctx: lightbulb.Context) -> None:
-    table.insert(
-        {"url": ctx.options.url, "channel_id": ctx.options.channel.id, "last_sync": -1}
-    )
-    log.info("Subscription created for {url}", url=ctx.options.url)
-    await ctx.respond("✅ Created subscription")
+    # Obtenir l'ID du serveur (guild) depuis le contexte d'interaction
+    guild_id = ctx.interaction.guild_id
 
+    if guild_id:
+        # Récupérer l'objet du serveur (guild) à partir de l'ID du serveur
+        guild = bot.cache.get_guild(int(guild_id))
+
+        if guild:
+            # Récupérer l'ID de la catégorie "alertes vinted" depuis les variables d'environnement
+            category_id = os.getenv("CATEGORY_ID")
+
+            if category_id:
+                # Vérifier si la catégorie existe dans le serveur (guild)
+                alert_category = guild.get_channel(int(category_id))
+
+                if alert_category and isinstance(alert_category, hikari.GuildCategory):
+                    # Créer un nouveau canal avec le nom spécifié sous la catégorie "alertes vinted"
+                    new_channel = await guild.create_text_channel(ctx.options.channel_name, category=alert_category)
+
+                    # Enregistrer l'abonnement dans la base de données
+                    table.insert(
+                        {"url": ctx.options.url, "channel_id": new_channel.id, "last_sync": -1}
+                    )
+                    log.info("Subscription created for {url}", url=ctx.options.url)
+
+                    await ctx.respond(f"✅ Created subscription in #{new_channel.name} under {alert_category.name}")
+                else:
+                    await ctx.respond("❌ Error: Could not find the specified category by ID.")
+            else:
+                await ctx.respond("❌ Error: CATEGORY_ID is not defined in the environment variables.")
+        else:
+            await ctx.respond("❌ Error: Could not find the server (guild). Please use this command in a server (guild).")
+    else:
+        await ctx.respond("❌ Error: Could not obtain the server (guild) ID.")
 
 @bot.command()
 @lightbulb.command("subscriptions", "Get a list of subscription")
@@ -78,16 +102,30 @@ async def subscriptions(ctx: lightbulb.Context) -> None:
 
     await ctx.respond(embed)
 
-
 @bot.command()
 @lightbulb.option("id", "ID of the subscription", type=int, required=True)
 @lightbulb.command("unsubscribe", "Stop following a subscription")
 @lightbulb.implements(lightbulb.SlashCommand)
 async def unsubscribe(ctx: lightbulb.Context) -> None:
-    table.delete(id=ctx.options.id)
-    log.info("Deleted subscription #{id}", id=str(ctx.options.id))
-    await ctx.respond(f"🗑 Deleted subscription #{str(ctx.options.id)}.")
+    subscription_id = ctx.options.id
+    subscription = table.find_one(id=subscription_id)
 
+    if subscription:
+        # Supprimer l'alerte de la base de données
+        table.delete(id=subscription_id)
+
+        # Obtenir l'objet du canal à partir de l'ID du canal dans l'alerte
+        channel = bot.cache.get_guild(ctx.interaction.guild_id).get_channel(subscription["channel_id"])
+
+        if channel:
+            # Supprimer le canal
+            await channel.delete()
+            log.info("Deleted subscription #{id}", id=str(subscription_id))
+            await ctx.respond(f"🗑 Deleted subscription #{str(subscription_id)}.")
+        else:
+            await ctx.respond("❌ Error: Could not find the channel to delete.")
+    else:
+        await ctx.respond("❌ Error: Subscription not found with ID {id}.")
 
 if __name__ == "__main__":
     if os.name != "nt":
