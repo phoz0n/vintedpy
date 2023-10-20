@@ -97,20 +97,6 @@ def generate_embed(item: Any, sub_id: int) -> hikari.Embed:
         detected_language_text = "Unknown"
 
     embed.add_field("Language", detected_language_text, inline=True)
-    
-    # Récupérer le texte à partir de l'image
-    try:
-        image_url = item["photo"]["url"]
-        image_response = requests.get(image_url)
-        if image_response.status_code == 200:
-            image = Image.open(BytesIO(image_response.content))
-            image_text = pytesseract.image_to_string(image)
-        else:
-            image_text = "Text extraction failed"
-    except Exception as e:
-        image_text = "Text extraction failed"
-
-    embed.add_field("Text from Image", image_text, inline=False)
 
     embed.add_field("Price", str(item["price"]) or "-1" + " €", inline=True)
 
