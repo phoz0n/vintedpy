@@ -5,6 +5,8 @@ import dotenv
 import hikari
 import lightbulb
 from loguru import logger as log
+from langdetect import detect
+from scraper import language_flags
 
 from scraper import generate_embed, scrape
 
@@ -13,6 +15,12 @@ dotenv.load_dotenv()
 bot = lightbulb.BotApp(token=os.getenv("TOKEN"))
 db = dataset.connect("sqlite:///data.db")
 table = db["subscriptions"]
+language_flags = {
+    "fr": "🇫🇷",
+    "it": "🇮🇹",
+    "en": "🇬🇧",
+    "ja": "🇯🇵"
+}
 
 async def run_background() -> None:
     log.info("Scraper started.")

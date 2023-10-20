@@ -3,9 +3,17 @@ from dataset import Database
 import hikari
 from lightbulb import BotApp
 from datetime import datetime
+from langdetect import detect
 
 from api import search
 from loguru import logger as log
+
+language_flags = {
+    "fr": "🇫🇷",
+    "it": "🇮🇹",
+    "en": "🇬🇧",
+    "ja": "🇯🇵"
+}
 
 
 def scrape(db: Database, params: Dict[str, str]) -> List:
@@ -80,13 +88,27 @@ def generate_embed(item: Any, sub_id: int) -> hikari.Embed:
     embed.url = item["url"] or "Unknown"
     embed.set_image(item["photo"]["url"] or "Unknown")
     embed.color = hikari.Color(0x09B1BA)
-    embed.add_field("Price", str(item["price"]) or "-1" + " €", inline=True)
-    embed.add_field("Size", item["size_title"] or "-1", inline=True)
 
-    date = datetime.utcfromtimestamp(
-        int(item["photo"]["high_resolution"]["timestamp"])
-    ).strftime("%d/%m/%Y, %H:%M:%S")
-    embed.set_footer(f'Published on {date or "unknown"} • Subscription #{str(sub_id)}')
+    # Utiliser le champ "title" pour la détection de la langue
+    detected_language = "unknown"
+
+    try:
+        detected_language = detect(item["title"])
+    except:
+        pass
+
+    # Ajouter le drapeau correspondant à la langue détectée
+    if detected_language in language_flags:
+        flag_emoji = language_flags[detected_language]
+        detected_language_text = f"{flag_emoji} ({detected_language})"
+    else:
+        detected_language_text = "Unknown"
+
+    embed.add_field("Language", detected_language_text, inline=True)
+    embed.add_field("Price", str(item["price"]) or "-1" + " €", inline=True)
+
+    embed.set_footer(f'Published on {datetime.now().strftime("%d/%m/%Y, %H:%M:%S") or "unknown"} • Subscription #{str(sub_id)}')
+
     embed.set_author(
         name="Posted by " + item["user"]["login"] or "unknown",
         url=item["user"]["profile_url"] or "unknown",
