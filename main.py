@@ -1,4 +1,5 @@
 import asyncio
+import random
 import os
 import dataset
 import dotenv
@@ -48,8 +49,9 @@ async def run_background() -> None:
                     ["id"],
                 )
 
-        log.info("Sleeping for {interval} seconds", interval=os.getenv("INTERVAL", 60))
-        await asyncio.sleep(int(os.getenv("INTERVAL", 60)))
+        sleep_duration = random.randint(60, 120)
+        await asyncio.sleep(sleep_duration)
+        log.info("Slept for {duration} seconds", duration=sleep_duration)
 
 
 @bot.listen(hikari.ShardReadyEvent)
