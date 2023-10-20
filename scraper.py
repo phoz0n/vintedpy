@@ -5,12 +5,14 @@ from lightbulb import BotApp
 from datetime import datetime
 from langdetect import detect
 
+
 from api import search
 from loguru import logger as log
 
 language_flags = {
     "fr": "🇫🇷",
     "it": "🇮🇹",
+    "nl": "🇳🇱",
     "en": "🇬🇧",
     "ja": "🇯🇵"
 }
@@ -73,16 +75,6 @@ def scrape(db: Database, params: Dict[str, str]) -> List:
 
 
 def generate_embed(item: Any, sub_id: int) -> hikari.Embed:
-    """
-    Generate an embed with item details
-
-    Args:
-        item (Any): Scraped item
-        sub_id (int): Subscription ID
-
-    Returns:
-        hikari.Embed: Generated embed
-    """
     embed = hikari.Embed()
     embed.title = item["title"] or "Unknown"
     embed.url = item["url"] or "Unknown"
@@ -105,6 +97,21 @@ def generate_embed(item: Any, sub_id: int) -> hikari.Embed:
         detected_language_text = "Unknown"
 
     embed.add_field("Language", detected_language_text, inline=True)
+    
+    # Récupérer le texte à partir de l'image
+    try:
+        image_url = item["photo"]["url"]
+        image_response = requests.get(image_url)
+        if image_response.status_code == 200:
+            image = Image.open(BytesIO(image_response.content))
+            image_text = pytesseract.image_to_string(image)
+        else:
+            image_text = "Text extraction failed"
+    except Exception as e:
+        image_text = "Text extraction failed"
+
+    embed.add_field("Text from Image", image_text, inline=False)
+
     embed.add_field("Price", str(item["price"]) or "-1" + " €", inline=True)
 
     embed.set_footer(f'Published on {datetime.now().strftime("%d/%m/%Y, %H:%M:%S") or "unknown"} • Subscription #{str(sub_id)}')
